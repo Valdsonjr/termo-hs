@@ -54,7 +54,7 @@ main = do
           M.fromList $
             map (\letter -> (letter, Untested)) ['A' .. 'Z'],
         _guesses = 1,
-        _wordMap = wordMap,
+        _validWords = wordMap,
         _answer = fst $ M.elemAt ix wordMap,
         _maxGuesses = 6
       }
@@ -62,7 +62,7 @@ main = do
 data GameState = GS
   { _attemptMap :: !(M.Map Char CharacterStatus),
     _guesses :: !Word,
-    _wordMap :: !(M.Map T.Text T.Text),
+    _validWords :: !(M.Map T.Text T.Text),
     _answer :: !T.Text,
     _maxGuesses :: !Word
   }
@@ -103,18 +103,18 @@ introString =
     <> color Green ":s"
     <> " para sair."
 
-loop :: (Monad m) => m (Maybe a) -> m a
-loop action = action >>= maybe (loop action) pure
+loop :: (Monad m, Monoid b) => m (Maybe b) -> m b
+loop action = action >>= maybe (pure mempty) (\x -> mappend x <$> loop action)
 
-continue :: Game a
-continue = mzero
+exit :: Game
+exit = mzero
 
 printLnS :: (MonadIO m) => T.Text -> m ()
 printLnS = liftIO . T.putStrLn
 
-type Game a = MaybeT (StateT GameState IO) a
+type Game = MaybeT (StateT GameState IO) ()
 
-game :: Game ()
+game :: Game
 game = do
   displayAttemptNumbers
 
@@ -123,19 +123,17 @@ game = do
 
   line <- liftIO T.getLine
   case line of
-    ":s" -> pure ()
-    ":?" -> drawHelp >> continue
-    ":l" -> drawAttemptMap >> continue
+    ":s" -> exit
+    ":?" -> drawHelp
+    ":l" -> drawAttemptMap
     word -> makeAttempt $ T.toUpper word
 
-makeAttempt :: T.Text -> Game ()
+makeAttempt :: T.Text -> Game
 makeAttempt word = do
-  wordMap <- gets _wordMap
+  wordMap <- gets _validWords
 
   if M.notMember word wordMap
-    then do
-      printLnS "Palavra inválida, por favor tente novamente"
-      continue
+    then printLnS "Palavra inválida, por favor tente novamente"
     else do
       answer <- gets _answer
       guesses <- gets _guesses
@@ -150,15 +148,13 @@ makeAttempt word = do
       if word == answer
         then do
           printLnS $ "Você ganhou! " <> msg
-          pure ()
+          exit
         else
           if guesses >= maxGuesses
             then do
               printLnS $ "Você perdeu! " <> msg
-              pure ()
-            else do
-              modify (\s -> s {_guesses = _guesses s + 1})
-              continue
+              exit
+            else modify (\s -> s {_guesses = _guesses s + 1})
 
 helpString :: T.Text
 helpString =
@@ -197,7 +193,7 @@ showAttemptMap amap = T.concatMap showColoredChar letters
         (M.findWithDefault Untested c amap)
         (showPrettyChar c)
 
-displayAttemptNumbers :: Game ()
+displayAttemptNumbers :: Game
 displayAttemptNumbers = do
   currentGuess <- gets _guesses
   maxGuesses <- gets _maxGuesses

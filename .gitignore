@@ -26,8 +26,6 @@ cabal.project.local~
 .HTF/
 .ghc.environment.*
 
-app-secrets/
-
 ### VisualStudioCode ###
 .vscode/*
 !.vscode/settings.json
@@ -47,11 +45,4 @@ app-secrets/
 .history
 .ionide
 
-# Support for Project snippet scope
-.vscode/*.code-snippets
-
-# Ignore code-workspaces
-*.code-workspace
-
 # End of https://www.toptal.com/developers/gitignore/api/haskell,visualstudiocode
-benchmarks.html
