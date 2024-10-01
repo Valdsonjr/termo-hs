@@ -4,12 +4,12 @@ module Main (main) where
 
 import Control.Arrow ((&&&))
 import Control.Monad (forM_, mzero, when)
-import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.ST.Strict (ST)
 import Control.Monad.State
   ( StateT,
     evalStateT,
     gets,
+    lift,
     modify,
     modify',
   )
@@ -56,15 +56,19 @@ main = do
         _guesses = 1,
         _validWords = wordMap,
         _answer = fst $ M.elemAt ix wordMap,
-        _maxGuesses = 6
+        _maxGuesses = 6,
+        _writeStr = T.putStr,
+        _readInput = T.getLine
       }
 
-data GameState = GS
+data GameState m = GS
   { _attemptMap :: !(M.Map Char CharacterStatus),
     _guesses :: !Word,
     _validWords :: !(M.Map T.Text T.Text),
     _answer :: !T.Text,
-    _maxGuesses :: !Word
+    _maxGuesses :: !Word,
+    _writeStr :: T.Text -> m (),
+    _readInput :: m T.Text
   }
 
 data CharacterStatus
@@ -106,29 +110,39 @@ introString =
 loop :: (Monad m, Monoid b) => m (Maybe b) -> m b
 loop action = action >>= maybe (pure mempty) (\x -> mappend x <$> loop action)
 
-exit :: Game
+exit :: (Monad m) => GameT m ()
 exit = mzero
 
-printLnS :: (MonadIO m) => T.Text -> m ()
-printLnS = liftIO . T.putStrLn
+printLnS :: (Monad m) => T.Text -> GameT m ()
+printLnS = printS . (<> "\n")
 
-type Game = MaybeT (StateT GameState IO) ()
+printS :: (Monad m) => T.Text -> GameT m ()
+printS txt = do
+  writer <- gets _writeStr
+  lift $ lift $ writer txt
 
-game :: Game
+getLineS :: (Monad m) => GameT m T.Text
+getLineS = do
+  reader <- gets _readInput
+  lift $ lift reader
+
+type GameT m a = MaybeT (StateT (GameState m) m) a
+
+game :: (Monad m) => GameT m ()
 game = do
   displayAttemptNumbers
 
   let drawHelp = printLnS helpString
   let drawAttemptMap = gets _attemptMap >>= printLnS . showAttemptMap
 
-  line <- liftIO T.getLine
+  line <- getLineS
   case line of
     ":s" -> exit
     ":?" -> drawHelp
     ":l" -> drawAttemptMap
     word -> makeAttempt $ T.toUpper word
 
-makeAttempt :: T.Text -> Game
+makeAttempt :: (Monad m) => T.Text -> GameT m ()
 makeAttempt word = do
   wordMap <- gets _validWords
 
@@ -193,16 +207,17 @@ showAttemptMap amap = T.concatMap showColoredChar letters
         (M.findWithDefault Untested c amap)
         (showPrettyChar c)
 
-displayAttemptNumbers :: Game
+displayAttemptNumbers :: (Monad m) => GameT m ()
 displayAttemptNumbers = do
   currentGuess <- gets _guesses
   maxGuesses <- gets _maxGuesses
-  liftIO . putStr $
-    "Digite sua tentativa ["
-      <> show currentGuess
-      <> "/"
-      <> show maxGuesses
-      <> "]: "
+  printS $
+    T.pack $
+      "Digite sua tentativa ["
+        <> show currentGuess
+        <> "/"
+        <> show maxGuesses
+        <> "]: "
 
 showPrettyChar :: Char -> T.Text
 showPrettyChar c = T.cons ' ' $ T.cons c " "
