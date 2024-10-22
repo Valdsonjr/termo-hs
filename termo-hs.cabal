@@ -19,24 +19,8 @@ maintainer:         valdsonfrancisco.jr@gmail.com
 category:           Game
 extra-source-files: CHANGELOG.md
 
-executable termo-hs
-    main-is:          Main.hs
 
-    -- Modules included in this executable, other than Main.
-    -- other-modules:
-
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
-    build-depends:
-        array,
-        base ^>=4.17.2.1,
-        containers,
-        mtl,
-        pretty-terminal,
-        random,
-        text,
-        transformers
-    hs-source-dirs:   app
+common shared
     ghc-options:
         -Wall
         -Wunused-packages
@@ -45,4 +29,35 @@ executable termo-hs
         -Wincomplete-uni-patterns
         -Wpartial-fields
         -Wredundant-constraints
+    build-depends:    base ^>=4.17.2.1, text
     default-language: Haskell2010
+
+executable termo-hs
+    import:           shared
+    main-is:          Main.hs
+
+    -- Modules included in this executable, other than Main.
+    -- other-modules:
+
+    build-depends:
+        termo-hs,
+        random
+    hs-source-dirs:   app
+
+library
+    import:           shared
+    exposed-modules:    Game
+    build-depends:
+        array,
+        containers,
+        mtl ^>=2.3.1,
+        pretty-terminal,
+        transformers
+    hs-source-dirs:   src
+
+test-suite termo-hs-test
+    import:           shared
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   tests
+    main-is:          Main.hs
+    build-depends:    termo-hs, tasty, tasty-hunit
